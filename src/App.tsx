@@ -10,6 +10,7 @@ import Accounts from './pages/Accounts';
 import Transactions from './pages/Transactions';
 import CardLink from './pages/CardLink';
 import WeeklyPlan from './pages/WeeklyPlan';
+import Users from './pages/Users';
 
 function Protected({ children }: { children: React.ReactNode }) {
   return (
@@ -32,6 +33,7 @@ export default function App() {
       <Route path="/transactions" element={<Protected><Transactions /></Protected>} />
       <Route path="/cardlink" element={<Protected><CardLink /></Protected>} />
       <Route path="/weekly-plan" element={<Protected><WeeklyPlan /></Protected>} />
+      <Route path="/users" element={<Protected><Users /></Protected>} />
     </Routes>
   );
 }
