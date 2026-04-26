@@ -1,12 +1,27 @@
 import { Routes, Route } from 'react-router-dom';
+import { AuthGuard } from './auth/AuthGuard';
+import { RoleGuard } from './auth/RoleGuard';
+import AppShell from './components/AppShell';
 import Home from './pages/Home';
 import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+
+function Protected({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthGuard>
+      <RoleGuard>
+        <AppShell>{children}</AppShell>
+      </RoleGuard>
+    </AuthGuard>
+  );
+}
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
     </Routes>
   );
 }
