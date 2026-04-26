@@ -5,6 +5,7 @@ import { Pencil, Trash2, Filter } from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
 import * as api from '../api/endpoints';
 import { ApiError } from '../api/client';
+import { notify } from '../lib/notify';
 
 type Cl = {
   _id: string;
@@ -86,19 +87,24 @@ export default function CardLinksPage() {
 
   const save = async () => {
     if (!form.email || !form.cardNumber || !form.from || !form.to) {
-      setError('Fill in all required fields');
+      notify.error('Fill in all required fields');
       return;
     }
     setSaving(true);
     setError('');
     try {
       const body = { ...form, ...(editing ? { userId: editing.userId?._id } : {}) };
-      if (editing) await api.updateCardlink(editing._id, body);
-      else await api.createCardlink(body);
+      if (editing) {
+        await api.updateCardlink(editing._id, body);
+        notify.success('Card link updated');
+      } else {
+        await api.createCardlink(body);
+        notify.success('Card link created');
+      }
       setOpen(false);
       mutate();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to save Card Link');
+      notify.error(err instanceof ApiError ? err : 'Failed to save Card Link');
     } finally {
       setSaving(false);
     }
@@ -108,9 +114,10 @@ export default function CardLinksPage() {
     if (!confirm('Are you sure you want to delete this Card Link?')) return;
     try {
       await api.deleteCardlink(cl._id);
+      notify.success('Card link deleted');
       mutate();
     } catch (err) {
-      console.error('Failed to delete Card Link:', err);
+      notify.error(err, 'Failed to delete Card Link');
     }
   };
 

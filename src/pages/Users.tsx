@@ -5,6 +5,7 @@ import Select from '../components/Select';
 import { Pencil, Trash2, Search, Plus, Users, UserCheck, Calendar, Shield } from 'lucide-react';
 import * as api from '../api/endpoints';
 import { ApiError } from '../api/client';
+import { notify } from '../lib/notify';
 
 interface User {
   _id: string;
@@ -84,13 +85,17 @@ export default function UsersPage() {
     setError('');
     setSaving(true);
     try {
-      if (editing) await api.updateUser(editing._id, form);
-      else await api.createUser(form);
+      if (editing) {
+        await api.updateUser(editing._id, form);
+        notify.success(`User "${form.name || form.email}" updated`);
+      } else {
+        await api.createUser(form);
+        notify.success(`User "${form.name || form.email}" created`);
+      }
       await mutate();
       setOpen(false);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Failed to save');
-      console.error('Save user failed', e);
+      notify.error(e instanceof ApiError ? e : 'Failed to save user');
     } finally {
       setSaving(false);
     }
@@ -100,10 +105,10 @@ export default function UsersPage() {
     if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
     try {
       await api.deleteUser(id);
+      notify.success('User deleted');
       await mutate();
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'Failed to delete user';
-      alert(msg);
+      notify.error(e, 'Failed to delete user');
     }
   };
 

@@ -9,6 +9,7 @@ const STAFF_ALLOWED = [
   '/profile',
   '/cardlink',
   '/weekly-plan',
+  '/interviews',
 ];
 
 export function RoleGuard({ children }: { children: ReactNode }) {

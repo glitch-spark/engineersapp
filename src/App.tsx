@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { AuthGuard } from './auth/AuthGuard';
 import { RoleGuard } from './auth/RoleGuard';
 import AppShell from './components/AppShell';
@@ -13,6 +14,7 @@ import WeeklyPlan from './pages/WeeklyPlan';
 import Users from './pages/Users';
 import Profile from './pages/Profile';
 import Accountants from './pages/Accountants';
+import Interviews from './pages/Interviews';
 
 function Protected({ children }: { children: React.ReactNode }) {
   return (
@@ -26,8 +28,10 @@ function Protected({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
+    <>
+      <Toaster position="top-center" gutter={8} />
+      <Routes>
+        <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
@@ -36,11 +40,13 @@ export default function App() {
       <Route path="/transactions" element={<Protected><Transactions /></Protected>} />
       <Route path="/cardlink" element={<Protected><CardLink /></Protected>} />
       <Route path="/weekly-plan" element={<Protected><WeeklyPlan /></Protected>} />
+      <Route path="/interviews" element={<Protected><Interviews /></Protected>} />
       <Route path="/users" element={<Protected><Users /></Protected>} />
       <Route path="/profile" element={<Protected><Profile /></Protected>} />
       <Route path="/accountants" element={<Protected><Accountants /></Protected>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }

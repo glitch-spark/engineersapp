@@ -5,6 +5,7 @@ import { Pencil, Trash2, CheckCircle, XCircle, Filter } from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
 import * as api from '../api/endpoints';
 import { ApiError } from '../api/client';
+import { notify } from '../lib/notify';
 
 type Tx = {
   _id: string;
@@ -79,20 +80,29 @@ export default function TransactionsPage() {
   };
 
   const save = async () => {
-    if (!form.date || form.amount === 0) {
-      setError('Date and amount are required');
+    if (!form.date) {
+      notify.error('Date is required');
+      return;
+    }
+    if (form.amount === 0) {
+      notify.error('Amount is required');
       return;
     }
     setSaving(true);
     setError('');
     try {
       const body = { ...form, ...(editing ? { userId: editing.userId?._id } : {}) };
-      if (editing) await api.updateTransaction(editing._id, body);
-      else await api.createTransaction(body);
+      if (editing) {
+        await api.updateTransaction(editing._id, body);
+        notify.success('Transaction updated');
+      } else {
+        await api.createTransaction(body);
+        notify.success('Transaction created');
+      }
       setOpen(false);
       mutate();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to save transaction');
+      notify.error(err instanceof ApiError ? err : 'Failed to save transaction');
     } finally {
       setSaving(false);
     }
@@ -102,18 +112,20 @@ export default function TransactionsPage() {
     if (!confirm('Are you sure you want to delete this transaction?')) return;
     try {
       await api.deleteTransaction(tx._id);
+      notify.success('Transaction deleted');
       mutate();
     } catch (err) {
-      console.error('Failed to delete transaction:', err);
+      notify.error(err, 'Failed to delete transaction');
     }
   };
 
   const setStatus = async (tx: Tx, status: 'approved' | 'rejected') => {
     try {
       await api.updateTransaction(tx._id, { ...tx, status });
+      notify.success(`Transaction ${status}`);
       mutate();
     } catch (err) {
-      console.error('Failed to update status:', err);
+      notify.error(err, 'Failed to update status');
     }
   };
 

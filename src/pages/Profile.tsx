@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../auth/useAuth';
 import * as api from '../api/endpoints';
-import { ApiError } from '../api/client';
+import { notify } from '../lib/notify';
 
 interface ProfileData {
   username: string;
@@ -21,7 +21,6 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   const [formData, setFormData] = useState<ProfileData>({ username: '', email: '', image: '', birthday: '' });
@@ -44,7 +43,7 @@ export default function ProfilePage() {
         setOriginalData(userData);
       } catch (error) {
         if (cancelled) return;
-        console.error('Failed to load user data:', error);
+        notify.error(error, 'Failed to load profile');
         const userData: ProfileData = {
           username: user?.name || '',
           email: user?.email || '',
@@ -73,15 +72,13 @@ export default function ProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage(null);
     try {
       await api.updateProfile(formData);
-      setMessage({ type: 'success', text: 'Profile updated successfully!' });
+      notify.success('Profile updated successfully');
       setOriginalData(formData);
       setIsEditing(false);
     } catch (error) {
-      const text = error instanceof ApiError ? error.message : 'An unexpected error occurred';
-      setMessage({ type: 'error', text });
+      notify.error(error, 'Failed to update profile');
     } finally {
       setIsLoading(false);
     }
@@ -89,32 +86,28 @@ export default function ProfilePage() {
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setMessage(null);
 
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      setMessage({ type: 'error', text: 'New passwords do not match' });
-      setIsLoading(false);
+      notify.error('New passwords do not match');
       return;
     }
 
     if (passwordData.newPassword.length < 6) {
-      setMessage({ type: 'error', text: 'New password must be at least 6 characters long' });
-      setIsLoading(false);
+      notify.error('New password must be at least 6 characters long');
       return;
     }
 
+    setIsLoading(true);
     try {
       await api.changePassword({
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword,
       });
-      setMessage({ type: 'success', text: 'Password changed successfully!' });
+      notify.success('Password changed successfully');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setIsChangingPassword(false);
     } catch (error) {
-      const text = error instanceof ApiError ? error.message : 'An unexpected error occurred';
-      setMessage({ type: 'error', text });
+      notify.error(error, 'Failed to change password');
     } finally {
       setIsLoading(false);
     }
@@ -123,13 +116,11 @@ export default function ProfilePage() {
   const handleCancel = () => {
     setFormData(originalData);
     setIsEditing(false);
-    setMessage(null);
   };
 
   const handlePasswordCancel = () => {
     setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
     setIsChangingPassword(false);
-    setMessage(null);
   };
 
   const hasChanges = JSON.stringify(formData) !== JSON.stringify(originalData);
@@ -252,31 +243,6 @@ export default function ProfilePage() {
                   disabled={!isEditing}
                 />
               </div>
-
-              {message && (
-                <div className={`p-4 rounded-xl border ${
-                  message.type === 'success'
-                    ? 'bg-green-50 border-green-200 text-green-800'
-                    : 'bg-red-50 border-red-200 text-red-800'
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`p-1 rounded-full ${
-                      message.type === 'success' ? 'bg-green-100' : 'bg-red-100'
-                    }`}>
-                      {message.type === 'success' ? (
-                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="text-sm font-medium">{message.text}</span>
-                  </div>
-                </div>
-              )}
 
               <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 {!isEditing ? (

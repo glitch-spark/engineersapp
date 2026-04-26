@@ -1,12 +1,12 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { ApiError } from '../api/client';
+import { notify } from '../lib/notify';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -14,24 +14,30 @@ export default function LoginPage() {
   const params = new URLSearchParams(location.search);
   const message = params.get('message');
 
+  // Surface ?message=... (post-registration) once on mount.
+  useEffect(() => {
+    if (message) notify.success(message);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
 
     if (!username.trim() || !password.trim()) {
-      setError('Please enter both username and password');
+      notify.error('Please enter both username and password');
       return;
     }
 
     setIsLoading(true);
     try {
       await login(username, password);
+      notify.success('Signed in');
       navigate('/dashboard', { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setError('Invalid username or password. Please try again.');
+        notify.error('Invalid username or password. Please try again.');
       } else {
-        setError('An unexpected error occurred. Please try again.');
+        notify.error(err, 'An unexpected error occurred. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -48,11 +54,6 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-3xl shadow-strong p-8 border border-gray-100">
-          {message && (
-            <div className="mb-4 bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700">
-              {message}
-            </div>
-          )}
           <form onSubmit={submit} className="space-y-6">
             <div className="form-group">
               <label htmlFor="username" className="form-label">Username or Email</label>
@@ -81,19 +82,6 @@ export default function LoginPage() {
                 disabled={isLoading}
               />
             </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-1 bg-red-100 rounded-full">
-                    <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </div>
-                  <p className="text-red-700 text-sm font-medium">{error}</p>
-                </div>
-              </div>
-            )}
 
             <button
               type="submit"

@@ -137,6 +137,9 @@ export const listAccounts = (params?: {
     `/accounts${qs(params)}`
   );
 
+export const getAccount = (id: string) =>
+  apiFetch<Record<string, unknown>>(`/accounts/${id}`);
+
 export const createAccount = (body: Record<string, unknown>) =>
   postJSON<Record<string, unknown>>('/accounts', body);
 
@@ -201,3 +204,39 @@ export const updateWeeklyPlan = (id: string, body: Record<string, unknown>) =>
   putJSON<Record<string, unknown>>(`/weekly-plans/${id}`, body);
 
 export const deleteWeeklyPlan = (id: string) => del<{ message: string }>(`/weekly-plans/${id}`);
+
+// ---------- accounts lookup (filter dropdowns) ----------
+
+export const lookupAccounts = () =>
+  apiFetch<{ accounts: { _id: string; name: string; email: string }[] }>('/accounts/lookup');
+
+// ---------- users lookup (filter dropdowns; available to all authed users) ----------
+
+export const lookupUsers = () =>
+  apiFetch<{ users: { _id: string; name: string | null; email: string | null }[] }>('/users/lookup');
+
+// ---------- interviews ----------
+
+export interface InterviewListParams {
+  page?: number;
+  limit?: number;
+  from?: string;
+  to?: string;
+  accountId?: string;
+  stage?: string;
+  creatorId?: string;
+  sort?: 'asc' | 'desc';
+}
+
+export const listInterviews = (params?: InterviewListParams) =>
+  apiFetch<{ interviews: Record<string, unknown>[]; pagination: Pagination }>(
+    `/interviews${qs(params)}`
+  );
+
+export const createInterview = (body: Record<string, unknown>) =>
+  postJSON<Record<string, unknown>>('/interviews', body);
+
+export const updateInterview = (id: string, body: Record<string, unknown>) =>
+  putJSON<Record<string, unknown>>(`/interviews/${id}`, body);
+
+export const deleteInterview = (id: string) => del<{ ok: boolean }>(`/interviews/${id}`);

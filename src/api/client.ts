@@ -34,9 +34,17 @@ export function setStoredUser(user: unknown): void {
 }
 
 function getBaseUrl(): string {
-  // Vite injects import.meta.env at build time; cast keeps Next's tsc happy until commit 4.
-  const meta = import.meta as unknown as { env?: Record<string, string | undefined> };
-  return meta.env?.VITE_API_BASE_URL ?? '';
+  const env = import.meta.env;
+  const raw = env.VITE_API_BASE_URL?.trim();
+  if (raw) return raw.replace(/\/+$/, '');
+  if (env.DEV) {
+    console.warn(
+      '[api] VITE_API_BASE_URL is empty in dev mode — defaulting to http://localhost:8000. ' +
+        'Set it in engineersapp/.env.development and restart `npm run dev` to silence this.'
+    );
+    return 'http://localhost:8000';
+  }
+  return '';
 }
 
 const BASE_URL = getBaseUrl();
@@ -46,6 +54,11 @@ export class ApiError extends Error {
     super(message || `HTTP ${status}`);
     this.name = 'ApiError';
   }
+}
+
+// Lazy require to avoid an import cycle (notify.ts imports ApiError from this file).
+function emitToast(level: 'info' | 'error', message: string): void {
+  import('../lib/notify').then(({ notify }) => notify[level](message)).catch(() => {});
 }
 
 export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
@@ -62,8 +75,11 @@ export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}
   if (res.status === 401) {
     clearToken();
     if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      emitToast('info', 'Please log in to continue');
       window.location.assign('/login');
     }
+  } else if (res.status === 403) {
+    emitToast('error', 'You do not have permission for this action');
   }
 
   const text = await res.text();

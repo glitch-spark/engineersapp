@@ -1,33 +1,31 @@
 import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as api from '../api/endpoints';
-import { ApiError } from '../api/client';
+import { notify } from '../lib/notify';
 
 export default function RegisterPage() {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
 
     if (!username.trim() || !email.trim() || !password || !confirmPassword) {
-      setError('Please fill in all fields');
+      notify.error('Please fill in all fields');
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      notify.error('Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      notify.error('Password must be at least 6 characters long');
       return;
     }
 
@@ -36,8 +34,7 @@ export default function RegisterPage() {
       await api.register({ username, email, password });
       navigate('/login?message=Registration successful! Please sign in.');
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to register. Please try again.';
-      setError(msg);
+      notify.error(err, 'Failed to register. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -118,19 +115,6 @@ export default function RegisterPage() {
                 disabled={loading}
               />
             </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-1 bg-red-100 rounded-full">
-                    <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </div>
-                  <p className="text-red-700 text-sm font-medium">{error}</p>
-                </div>
-              </div>
-            )}
 
             <button
               type="submit"

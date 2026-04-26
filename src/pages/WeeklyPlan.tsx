@@ -1,13 +1,14 @@
 import useSWR from 'swr';
 import { useEffect, useState } from 'react';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
-import 'react-quill/dist/quill.bubble.css';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
+import 'react-quill-new/dist/quill.bubble.css';
 import Modal from '../components/Modal';
 import { Pencil, Trash2, Filter, Calendar, User, Eye } from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
 import * as api from '../api/endpoints';
 import { ApiError } from '../api/client';
+import { notify } from '../lib/notify';
 
 const editorStyles = `
   .ql-editor { min-height: 200px; font-size: 14px; line-height: 1.5; }
@@ -197,7 +198,7 @@ export default function WeeklyPlanPage() {
 
   const save = async () => {
     if (!form.content.trim()) {
-      setError('Content is required');
+      notify.error('Content is required');
       return;
     }
     setSaving(true);
@@ -211,12 +212,17 @@ export default function WeeklyPlanPage() {
         content: form.content,
         result: form.result,
       };
-      if (editing) await api.updateWeeklyPlan(editing._id, body);
-      else await api.createWeeklyPlan(body);
+      if (editing) {
+        await api.updateWeeklyPlan(editing._id, body);
+        notify.success(`Week ${form.weekNumber} plan updated`);
+      } else {
+        await api.createWeeklyPlan(body);
+        notify.success(`Week ${form.weekNumber} plan created`);
+      }
       setOpen(false);
       mutate();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to save plan');
+      notify.error(err instanceof ApiError ? err : 'Failed to save plan');
     } finally {
       setSaving(false);
     }
@@ -226,9 +232,10 @@ export default function WeeklyPlanPage() {
     if (!confirm('Are you sure you want to delete this weekly plan?')) return;
     try {
       await api.deleteWeeklyPlan(plan._id);
+      notify.success('Weekly plan deleted');
       mutate();
     } catch (err) {
-      console.error('Failed to delete weekly plan:', err);
+      notify.error(err, 'Failed to delete weekly plan');
     }
   };
 
