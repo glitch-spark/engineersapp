@@ -1,0 +1,87 @@
+const TOKEN_KEY = 'engineersapp_token';
+const USER_KEY = 'engineersapp_user';
+
+export function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken(): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(USER_KEY);
+}
+
+export function getStoredUser<T = unknown>(): T | null {
+  if (typeof window === 'undefined') return null;
+  const raw = window.localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredUser(user: unknown): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+function getBaseUrl(): string {
+  // Vite injects import.meta.env at build time; cast keeps Next's tsc happy until commit 4.
+  const meta = import.meta as unknown as { env?: Record<string, string | undefined> };
+  return meta.env?.VITE_API_BASE_URL ?? '';
+}
+
+const BASE_URL = getBaseUrl();
+
+export class ApiError extends Error {
+  constructor(public status: number, public body: unknown, message?: string) {
+    super(message || `HTTP ${status}`);
+    this.name = 'ApiError';
+  }
+}
+
+export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers = new Headers(init.headers);
+  if (init.body !== undefined && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+
+  const url = path.startsWith('http') ? path : `${BASE_URL}${path}`;
+  const res = await fetch(url, { ...init, headers });
+
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.assign('/login');
+    }
+  }
+
+  const text = await res.text();
+  const body = text ? safeParseJSON(text) : null;
+  if (!res.ok) {
+    const msg =
+      (body as { error?: string; detail?: string } | null)?.error ??
+      (body as { error?: string; detail?: string } | null)?.detail ??
+      `HTTP ${res.status}`;
+    throw new ApiError(res.status, body, msg);
+  }
+  return body as T;
+}
+
+function safeParseJSON(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
