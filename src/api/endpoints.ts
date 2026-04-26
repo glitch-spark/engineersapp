@@ -7,6 +7,7 @@ export interface User {
   name: string | null;
   email: string | null;
   role: 'admin' | 'staff' | 'accountant';
+  image?: string | null;
 }
 
 export interface LoginResponse {
@@ -57,7 +58,7 @@ export interface TransactionSummary {
 
 // ---------- helpers ----------
 
-function qs(params?: Record<string, unknown>): string {
+function qs(params?: object): string {
   if (!params) return '';
   const entries = Object.entries(params).filter(
     ([, v]) => v !== undefined && v !== null && v !== ''
