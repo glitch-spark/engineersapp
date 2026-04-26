@@ -5,6 +5,7 @@ import AppShell from './components/AppShell';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Profile from './pages/Profile';
 
 function Protected({ children }: { children: React.ReactNode }) {
   return (
@@ -22,6 +23,7 @@ export default function App() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+      <Route path="/profile" element={<Protected><Profile /></Protected>} />
     </Routes>
   );
 }
