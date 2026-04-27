@@ -196,7 +196,7 @@ export default function AiReviewPanel({ selectedIds }: Props) {
         <div>
           <h3 className="text-sm font-semibold text-gray-800 mb-2">Or write a custom prompt</h3>
           <textarea
-            className="input w-full min-h-[90px] font-mono text-sm"
+            className="input w-full min-h-[90px] text-sm"
             placeholder="e.g. Compare these two candidates on systems-design fluency."
             value={customPrompt}
             onChange={(e) => onCustomChange(e.target.value)}

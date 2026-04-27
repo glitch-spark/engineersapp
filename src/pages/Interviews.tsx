@@ -633,7 +633,14 @@ export default function InterviewsPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">Loading…</td></tr>
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                      Loading interviews...
+                    </div>
+                  </td>
+                </tr>
               ) : interviews.length === 0 ? (
                 <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">No interviews found.</td></tr>
               ) : (
@@ -644,7 +651,10 @@ export default function InterviewsPage() {
         </div>
       ) : (
         isLoading ? (
-          <div className="text-center text-gray-500 py-8">Loading…</div>
+          <div className="flex items-center justify-center py-8 text-gray-500">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+            Loading interviews...
+          </div>
         ) : interviews.length === 0 ? (
           <div className="text-center text-gray-500 py-8">No interviews found.</div>
         ) : (

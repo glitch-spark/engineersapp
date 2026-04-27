@@ -208,7 +208,7 @@ export default function ReviewIdeasPanel() {
           house-style instructions ("act as a senior interview consultant…").
         </p>
         <textarea
-          className="input w-full min-h-[160px] font-mono text-sm"
+          className="input w-full min-h-[160px] text-sm"
           value={globalText}
           onChange={(e) => setGlobalText(e.target.value)}
           maxLength={20000}
@@ -282,7 +282,7 @@ export default function ReviewIdeasPanel() {
           <div>
             <label className="block text-sm font-medium mb-1">System prompt</label>
             <textarea
-              className="input w-full min-h-[180px] font-mono text-sm"
+              className="input w-full min-h-[180px] text-sm"
               value={form.systemPrompt}
               onChange={(e) => setForm({ ...form, systemPrompt: e.target.value })}
               maxLength={20000}
