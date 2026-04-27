@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, BASE_URL, getToken } from './client';
 
 // ---------- shared types ----------
 
@@ -240,3 +240,134 @@ export const updateInterview = (id: string, body: Record<string, unknown>) =>
   putJSON<Record<string, unknown>>(`/interviews/${id}`, body);
 
 export const deleteInterview = (id: string) => del<{ ok: boolean }>(`/interviews/${id}`);
+
+// ---------- skills (admin CRUD; list available to any auth user) ----------
+
+export interface Skill {
+  _id: string;
+  title: string;
+  minInterviews: number;
+  maxInterviews: number;
+  systemPrompt: string;
+  createdBy: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SkillInput {
+  title: string;
+  minInterviews: number;
+  maxInterviews: number;
+  systemPrompt: string;
+}
+
+export const listSkills = () => apiFetch<{ skills: Skill[] }>('/skills');
+
+export const createSkill = (body: SkillInput) => postJSON<Skill>('/skills', body);
+
+export const updateSkill = (id: string, body: Partial<SkillInput>) =>
+  apiFetch<Skill>(`/skills/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+
+export const deleteSkill = (id: string) => del<{ ok: boolean }>(`/skills/${id}`);
+
+// ---------- global prompt (admin edits; any auth user reads) ----------
+
+export interface GlobalPrompt {
+  _id: string;
+  key: string;
+  systemPrompt: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const getGlobalPrompt = () => apiFetch<GlobalPrompt>('/global-prompt');
+
+export const updateGlobalPrompt = (systemPrompt: string) =>
+  putJSON<GlobalPrompt>('/global-prompt', { systemPrompt });
+
+// ---------- AI review runs ----------
+
+export interface AiReviewRun {
+  _id: string;
+  interviewIds: string[];
+  skillId?: string | null;
+  customPrompt?: string | null;
+  output: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  ranBy: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const listAiReviewRuns = (limit = 50) =>
+  apiFetch<{ runs: AiReviewRun[] }>(`/ai-review/runs${qs({ limit })}`);
+
+export const getAiReviewRun = (id: string) =>
+  apiFetch<AiReviewRun>(`/ai-review/runs/${id}`);
+
+// ---------- AI review SSE stream ----------
+
+export interface StreamAiReviewOpts {
+  interviewIds: string[];
+  skillId?: string;
+  customPrompt?: string;
+  onDelta: (text: string) => void;
+  onDone: (runId: string) => void;
+  onError: (err: { message: string; status?: number }) => void;
+}
+
+/**
+ * Open an SSE connection to /ai-review/stream. Token is passed via query
+ * string because the browser EventSource API cannot set Authorization headers.
+ * Returns the EventSource so callers can `.close()` it on unmount/abort.
+ */
+export function streamAiReview(opts: StreamAiReviewOpts): EventSource {
+  const token = getToken();
+  if (!token) {
+    opts.onError({ message: 'Not authenticated' });
+    // Return a closed EventSource-like stub so the caller's close() is safe.
+    return new EventSource('about:blank');
+  }
+  const params = new URLSearchParams();
+  for (const id of opts.interviewIds) params.append('interviewIds', id);
+  if (opts.skillId) params.set('skillId', opts.skillId);
+  if (opts.customPrompt) params.set('customPrompt', opts.customPrompt);
+  params.set('token', token);
+
+  const es = new EventSource(`${BASE_URL}/ai-review/stream?${params.toString()}`);
+
+  es.onmessage = (ev) => {
+    try {
+      const payload = JSON.parse(ev.data);
+      if (typeof payload.delta === 'string') opts.onDelta(payload.delta);
+    } catch {
+      // ignore non-JSON keepalives
+    }
+  };
+  es.addEventListener('done', (ev) => {
+    try {
+      const payload = JSON.parse((ev as MessageEvent).data);
+      opts.onDone(payload.runId);
+    } catch {
+      opts.onDone('');
+    } finally {
+      es.close();
+    }
+  });
+  es.addEventListener('error', (ev) => {
+    try {
+      const payload = JSON.parse((ev as MessageEvent).data);
+      opts.onError({ message: payload.message || 'Stream error' });
+    } catch {
+      // EventSource fires a generic error event without data on connection drop;
+      // surface a message and close to disable auto-reconnect.
+      opts.onError({ message: 'Connection lost' });
+    } finally {
+      es.close();
+    }
+  });
+
+  return es;
+}

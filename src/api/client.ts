@@ -47,7 +47,7 @@ function getBaseUrl(): string {
   return '';
 }
 
-const BASE_URL = getBaseUrl();
+export const BASE_URL = getBaseUrl();
 
 export class ApiError extends Error {
   constructor(public status: number, public body: unknown, message?: string) {

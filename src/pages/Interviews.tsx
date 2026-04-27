@@ -1,13 +1,17 @@
 import useSWR from 'swr';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { Pencil, Trash2, Eye, Filter, Plus, LayoutGrid, Table as TableIcon, ArrowUpDown } from 'lucide-react';
 import Modal from '../components/Modal';
 import Select from '../components/Select';
+import Tabs from '../components/Tabs';
 import { useAuth } from '../auth/useAuth';
 import * as api from '../api/endpoints';
 import { notify } from '../lib/notify';
+import AiReviewPanel from './interview-ai/AiReviewPanel';
+import ReviewIdeasPanel from './interview-ai/ReviewIdeasPanel';
 
 const editorStyles = `
   .ql-editor { min-height: 140px; font-size: 14px; line-height: 1.5; }
@@ -158,6 +162,28 @@ export default function InterviewsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const meId = user?.id ?? '';
+
+  // Tabs synced to URL ?tab=
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const validTabs = new Set(isAdmin ? ['list', 'review', 'ideas'] : ['list', 'review']);
+  const activeTab = tabParam && validTabs.has(tabParam) ? tabParam : 'list';
+  const setActiveTab = (key: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (key === 'list') next.delete('tab');
+    else next.set('tab', key);
+    setSearchParams(next, { replace: true });
+  };
+
+  // Selection lives at the page so it survives tab switches.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const toggleOne = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   // Filters: creator defaults to "me" on first render; cleared via the dropdown.
   const [creatorId, setCreatorId] = useState<string>(meId);
@@ -379,8 +405,17 @@ export default function InterviewsPage() {
     const creator = typeof iv.createdBy === 'object' ? iv.createdBy : null;
     const account = typeof iv.accountId === 'object' ? iv.accountId : null;
     const editable = canEdit(iv);
+    const checked = selectedIds.has(iv._id);
     return (
-      <tr key={iv._id} className="border-t hover:bg-gray-50">
+      <tr key={iv._id} className={'border-t hover:bg-gray-50 ' + (checked ? 'bg-blue-50/40' : '')}>
+        <td className="px-3 py-2 w-10">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={() => toggleOne(iv._id)}
+            aria-label="Select interview"
+          />
+        </td>
         <td className="px-3 py-2">{iv.ownerName || creator?.name || iv.ownerEmail || creator?.email || '—'}</td>
         <td className="px-3 py-2">{formatTimeRange(iv.scheduledAt, iv.endsAt)}</td>
         <td className="px-3 py-2">
@@ -451,11 +486,31 @@ export default function InterviewsPage() {
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Interviews</h1>
-        <button type="button" className="btn" onClick={openCreate}>
-          <Plus size={16} className="mr-2" /> Create
-        </button>
+        {activeTab === 'list' && (
+          <button type="button" className="btn" onClick={openCreate}>
+            <Plus size={16} className="mr-2" /> Create
+          </button>
+        )}
       </div>
 
+      <Tabs
+        value={activeTab}
+        onChange={setActiveTab}
+        tabs={[
+          { key: 'list', label: 'Interviews' },
+          {
+            key: 'review',
+            label: `Interview Review with AI${selectedIds.size ? ` (${selectedIds.size})` : ''}`,
+          },
+          { key: 'ideas', label: 'Review Ideas', hidden: !isAdmin },
+        ]}
+      >
+        {activeTab === 'review' ? (
+          <AiReviewPanel selectedIds={selectedIds} />
+        ) : activeTab === 'ideas' ? (
+          isAdmin ? <ReviewIdeasPanel /> : null
+        ) : (
+        <div className="space-y-4">
       {/* Filters */}
       <div className="flex items-end gap-3 flex-wrap">
         <div className="min-w-[180px]">
@@ -541,6 +596,34 @@ export default function InterviewsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-100 text-left">
               <tr>
+                <th className="px-3 py-2 w-10">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all on this page"
+                    checked={
+                      interviews.length > 0 && interviews.every((iv) => selectedIds.has(iv._id))
+                    }
+                    ref={(el) => {
+                      if (!el) return;
+                      const someChecked = interviews.some((iv) => selectedIds.has(iv._id));
+                      const allChecked =
+                        interviews.length > 0 &&
+                        interviews.every((iv) => selectedIds.has(iv._id));
+                      el.indeterminate = someChecked && !allChecked;
+                    }}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        for (const iv of interviews) {
+                          if (checked) next.add(iv._id);
+                          else next.delete(iv._id);
+                        }
+                        return next;
+                      });
+                    }}
+                  />
+                </th>
                 <th className="px-3 py-2">Creator</th>
                 <th className="px-3 py-2">Date / Time</th>
                 <th className="px-3 py-2">Stage</th>
@@ -550,9 +633,16 @@ export default function InterviewsPage() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">Loading…</td></tr>
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                      Loading interviews...
+                    </div>
+                  </td>
+                </tr>
               ) : interviews.length === 0 ? (
-                <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">No interviews found.</td></tr>
+                <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">No interviews found.</td></tr>
               ) : (
                 interviews.map(renderRow)
               )}
@@ -561,7 +651,10 @@ export default function InterviewsPage() {
         </div>
       ) : (
         isLoading ? (
-          <div className="text-center text-gray-500 py-8">Loading…</div>
+          <div className="flex items-center justify-center py-8 text-gray-500">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+            Loading interviews...
+          </div>
         ) : interviews.length === 0 ? (
           <div className="text-center text-gray-500 py-8">No interviews found.</div>
         ) : (
@@ -615,6 +708,9 @@ export default function InterviewsPage() {
           </div>
         </div>
       )}
+        </div>
+        )}
+      </Tabs>
 
       {/* Create / Update / Read modal */}
       <Modal

@@ -346,7 +346,14 @@ export default function WeeklyPlanPage() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">Loading...</td></tr>
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                    Loading weekly plans...
+                  </div>
+                </td>
+              </tr>
             ) : plans.length === 0 ? (
               <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">No weekly plans found.</td></tr>
             ) : (

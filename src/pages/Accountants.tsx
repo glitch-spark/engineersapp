@@ -122,7 +122,10 @@ export default function AccountantsPage() {
           </div>
           <div className="max-h-96 overflow-y-auto">
             {isLoading ? (
-              <div className="p-4 text-center text-gray-500">Loading transactions...</div>
+              <div className="flex items-center justify-center py-8 text-gray-500">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                Loading transactions...
+              </div>
             ) : transactions.length > 0 ? (
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50">
@@ -158,7 +161,10 @@ export default function AccountantsPage() {
           </div>
           <div className="max-h-96 overflow-y-auto">
             {isLoading ? (
-              <div className="p-4 text-center text-gray-500">Loading accounts...</div>
+              <div className="flex items-center justify-center py-8 text-gray-500">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                Loading accounts...
+              </div>
             ) : accounts.length > 0 ? (
               <div className="p-4 space-y-3">
                 {accounts.map((account) => (
