@@ -43,7 +43,7 @@ const NavLink = ({ href, label, isCollapsed, icon, badge }: {
   );
 };
 
-export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolean; onToggle: () => void }) {
+export default function Sidebar({ isCollapsed }: { isCollapsed: boolean }) {
   const { user } = useAuth();
   const role = user?.role;
 
@@ -51,32 +51,8 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
     <aside className={`fixed top-16 left-0 bottom-0 border-r border-gray-100 bg-white/80 backdrop-blur-md z-30 overflow-y-auto transition-all duration-300 ${
       isCollapsed ? 'w-20' : 'w-64'
     }`}>
-      <div className="p-4 border-b border-gray-100">
-        <button
-          onClick={onToggle}
-          className="w-full p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 flex items-center justify-center group"
-          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-        >
-          {isCollapsed ? (
-            <svg className="w-5 h-5 text-gray-500 group-hover:text-primary transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-            </svg>
-          ) : (
-            <svg className="w-5 h-5 text-gray-500 group-hover:text-primary transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
-          )}
-        </button>
-      </div>
-
       <nav className="p-4 space-y-2">
         <div className="mb-4">
-          {!isCollapsed && (
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
-              Main
-            </h3>
-          )}
-
           <NavLink
             href="/dashboard"
             label="Dashboard"
@@ -91,7 +67,7 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
 
           <NavLink
             href="/accounts"
-            label="Accounts"
+            label="Profiles"
             isCollapsed={isCollapsed}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -113,7 +89,7 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
 
           <NavLink
             href="/cardlink"
-            label="Card Link"
+            label="Subscription"
             isCollapsed={isCollapsed}
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -144,6 +120,30 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
               </svg>
             }
           />
+
+          <NavLink
+            href="/resume"
+            label="Resume Generator"
+            isCollapsed={isCollapsed}
+            icon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            }
+          />
+
+          <NavLink
+            href="/preferences"
+            label="Preferences"
+            isCollapsed={isCollapsed}
+            icon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            }
+          />
+
         </div>
 
         {role === 'admin' && (
@@ -167,17 +167,6 @@ export default function Sidebar({ isCollapsed, onToggle }: { isCollapsed: boolea
           </div>
         )}
       </nav>
-
-      {!isCollapsed && (
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 bg-gray-50/50">
-          <div className="text-center">
-            <p className="text-xs text-gray-500 mb-2">Need help?</p>
-            <button className="text-xs text-primary hover:text-primary-dark font-medium transition-colors duration-200">
-              Contact Support
-            </button>
-          </div>
-        </div>
-      )}
     </aside>
   );
 }

@@ -10,6 +10,8 @@ const STAFF_ALLOWED = [
   '/cardlink',
   '/weekly-plan',
   '/interviews',
+  '/resume',
+  '/preferences',
 ];
 
 export function RoleGuard({ children }: { children: ReactNode }) {
@@ -21,7 +23,8 @@ export function RoleGuard({ children }: { children: ReactNode }) {
   if (user.role === 'accountant') {
     if (pathname !== '/accountants') return <Navigate to="/accountants" replace />;
   } else if (user.role === 'staff') {
-    if (!STAFF_ALLOWED.includes(pathname)) return <Navigate to="/dashboard" replace />;
+    const allowed = STAFF_ALLOWED.some((p) => pathname === p || pathname.startsWith(p + '/'));
+    if (!allowed) return <Navigate to="/dashboard" replace />;
   }
   // admin: no path restriction
 

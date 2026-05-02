@@ -1,17 +1,14 @@
 import useSWR from 'swr';
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { Pencil, Trash2, Eye, Filter, Plus, LayoutGrid, Table as TableIcon, ArrowUpDown } from 'lucide-react';
 import Modal from '../components/Modal';
 import Select from '../components/Select';
-import Tabs from '../components/Tabs';
 import { useAuth } from '../auth/useAuth';
 import * as api from '../api/endpoints';
 import { notify } from '../lib/notify';
-import AiReviewPanel from './interview-ai/AiReviewPanel';
-import ReviewIdeasPanel from './interview-ai/ReviewIdeasPanel';
 
 const editorStyles = `
   .ql-editor { min-height: 140px; font-size: 14px; line-height: 1.5; }
@@ -60,14 +57,40 @@ const QUILL_MODULES = {
 
 const STAGES = [
   { value: 'intro', label: 'Intro' },
-  { value: 'tech1', label: 'Tech 1' },
-  { value: 'tech2', label: 'Tech 2' },
+  { value: 'tech', label: 'Tech' },
   { value: 'panel', label: 'Panel' },
-  { value: 'hiring_manager', label: 'Hiring Manager' },
+  { value: 'live_coding', label: 'Live Coding' },
+  { value: 'system_design', label: 'System Design' },
+  { value: 'cultural', label: 'Cultural' },
   { value: 'final', label: 'Final' },
-  { value: 'offer', label: 'Offer' },
-  { value: 'others', label: 'Others' },
+  { value: 'ai_interview', label: 'AI Interview' },
 ];
+
+const STATUSES = [
+  { value: 'scheduled', label: 'Scheduled' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'passed', label: 'Passed' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'no_show', label: 'No Show' },
+  { value: 'rescheduled', label: 'Rescheduled' },
+  { value: 'canceled', label: 'Canceled' },
+];
+
+const statusBadgeClass = (s?: string | null) => {
+  switch (s) {
+    case 'scheduled': return 'bg-blue-100 text-blue-800';
+    case 'completed': return 'bg-gray-100 text-gray-700';
+    case 'passed': return 'bg-green-100 text-green-800';
+    case 'failed': return 'bg-red-100 text-red-800';
+    case 'no_show': return 'bg-orange-100 text-orange-800';
+    case 'rescheduled': return 'bg-yellow-100 text-yellow-800';
+    case 'canceled': return 'bg-gray-200 text-gray-700';
+    default: return 'bg-gray-50 text-gray-500';
+  }
+};
+
+const statusLabel = (v?: string | null) =>
+  v ? STATUSES.find((s) => s.value === v)?.label ?? v : '—';
 
 type AccountRef = { _id: string; name?: string; email?: string };
 type CreatorRef = { _id: string; name?: string; email?: string };
@@ -75,13 +98,15 @@ type CreatorRef = { _id: string; name?: string; email?: string };
 type Interview = {
   _id: string;
   accountId: AccountRef | string;
-  resumeId?: string | null;
-  resumeFilename?: string | null;
   createdBy: CreatorRef | string;
   scheduledAt: string;
   endsAt?: string | null;
-  stage: string;
-  jobDescription?: string;
+  stage?: string | null;
+  status?: string | null;
+  companyName?: string | null;
+  interviewerName?: string | null;
+  appliedPosition?: string | null;
+  mainTechStack?: string | null;
   transcript?: string;
   note?: string;
   ownerName?: string | null;
@@ -149,11 +174,13 @@ function formatTimeRange(startIso: string, endIso?: string | null): string {
 const stageBadgeClass = (stage: string) => {
   switch (stage) {
     case 'intro': return 'bg-gray-100 text-gray-700';
-    case 'tech1':
-    case 'tech2': return 'bg-blue-100 text-blue-800';
-    case 'hiring_manager': return 'bg-purple-100 text-purple-800';
+    case 'tech': return 'bg-blue-100 text-blue-800';
+    case 'panel': return 'bg-purple-100 text-purple-800';
+    case 'live_coding': return 'bg-indigo-100 text-indigo-800';
+    case 'system_design': return 'bg-cyan-100 text-cyan-800';
+    case 'cultural': return 'bg-pink-100 text-pink-800';
     case 'final': return 'bg-amber-100 text-amber-800';
-    case 'offer': return 'bg-green-100 text-green-800';
+    case 'ai_interview': return 'bg-emerald-100 text-emerald-800';
     default: return 'bg-gray-100 text-gray-700';
   }
 };
@@ -163,27 +190,8 @@ export default function InterviewsPage() {
   const isAdmin = user?.role === 'admin';
   const meId = user?.id ?? '';
 
-  // Tabs synced to URL ?tab=
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get('tab');
-  const validTabs = new Set(isAdmin ? ['list', 'review', 'ideas'] : ['list', 'review']);
-  const activeTab = tabParam && validTabs.has(tabParam) ? tabParam : 'list';
-  const setActiveTab = (key: string) => {
-    const next = new URLSearchParams(searchParams);
-    if (key === 'list') next.delete('tab');
-    else next.set('tab', key);
-    setSearchParams(next, { replace: true });
-  };
-
-  // Selection lives at the page so it survives tab switches.
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const toggleOne = (id: string) =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const navigate = useNavigate();
 
   // Filters: creator defaults to "me" on first render; cleared via the dropdown.
   const [creatorId, setCreatorId] = useState<string>(meId);
@@ -195,6 +203,7 @@ export default function InterviewsPage() {
 
   const [accountId, setAccountId] = useState('');
   const [stage, setStage] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [sort, setSort] = useState<'desc' | 'asc'>('desc');
@@ -204,7 +213,7 @@ export default function InterviewsPage() {
   const [pageSize, setPageSize] = useState(10);
 
   const { data, mutate, isLoading } = useSWR(
-    ['interviews', creatorId, accountId, stage, from, to, sort, currentPage, pageSize] as const,
+    ['interviews', creatorId, accountId, stage, statusFilter, from, to, sort, currentPage, pageSize] as const,
     () => api.listInterviews({
       page: currentPage,
       limit: pageSize,
@@ -212,6 +221,7 @@ export default function InterviewsPage() {
       ...(creatorId ? { creatorId } : {}),
       ...(accountId ? { accountId } : {}),
       ...(stage ? { stage } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
       ...(from ? { from } : {}),
       ...(to ? { to } : {}),
     })
@@ -252,12 +262,15 @@ export default function InterviewsPage() {
     const endHour = String((now.getHours() + 1) % 24).padStart(2, '0');
     return {
       accountId: '',
-      resumeId: '',
       date: `${yyyy}-${mm}-${dd}`,
       startTime: `${hh}:${mi}`,
       endTime: `${endHour}:${mi}`,
       stage: '',
-      jobDescription: '',
+      status: '',
+      companyName: '',
+      interviewerName: '',
+      appliedPosition: '',
+      mainTechStack: '',
       transcript: '',
       note: '',
     };
@@ -275,12 +288,15 @@ export default function InterviewsPage() {
       const accId = typeof active.accountId === 'string' ? active.accountId : active.accountId?._id ?? '';
       setForm({
         accountId: accId,
-        resumeId: active.resumeId || '',
         date: start.date,
         startTime: start.time,
         endTime: end.time || start.time,
-        stage: active.stage,
-        jobDescription: active.jobDescription || '',
+        stage: active.stage || '',
+        status: active.status || '',
+        companyName: active.companyName || '',
+        interviewerName: active.interviewerName || '',
+        appliedPosition: active.appliedPosition || '',
+        mainTechStack: active.mainTechStack || '',
         transcript: active.transcript || '',
         note: active.note || '',
       });
@@ -295,17 +311,38 @@ export default function InterviewsPage() {
   };
 
   const openCreate = () => { setActive(null); setMode('create'); };
-  const openRead = (iv: Interview) => { setActive(iv); setMode('read'); };
   const openUpdate = (iv: Interview) => { setActive(iv); setMode('update'); };
   const openDelete = (iv: Interview) => { setActive(iv); setMode('delete'); };
+
+  // Honor `?edit=:id` so the detail page can hand off to the edit modal.
+  const editParam = searchParams.get('edit');
+  useEffect(() => {
+    if (!editParam || mode !== null) return;
+    const fromList = (data?.interviews as Interview[] | undefined)?.find((i) => i._id === editParam);
+    if (fromList) {
+      openUpdate(fromList);
+      const next = new URLSearchParams(searchParams);
+      next.delete('edit');
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    let cancelled = false;
+    api.getInterview(editParam)
+      .then((iv) => {
+        if (cancelled) return;
+        openUpdate(iv as unknown as Interview);
+        const next = new URLSearchParams(searchParams);
+        next.delete('edit');
+        setSearchParams(next, { replace: true });
+      })
+      .catch(() => { /* leave param; user can retry */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editParam, data]);
 
   const save = async () => {
     if (mode === 'create' && !form.accountId) {
       notify.error('Select a profile (account)');
-      return;
-    }
-    if (!form.resumeId) {
-      notify.error('Select a resume');
       return;
     }
     if (!form.date) {
@@ -320,31 +357,31 @@ export default function InterviewsPage() {
       notify.error('End time must be after start time');
       return;
     }
-    if (!form.stage) {
-      notify.error('Select an interview stage');
-      return;
-    }
     setSaving(true);
     setError('');
     try {
       const body: Record<string, unknown> = {
         accountId: form.accountId,
-        resumeId: form.resumeId,
         scheduledAt: combineDateTime(form.date, form.startTime),
         endsAt: combineDateTime(form.date, form.endTime),
         stage: form.stage,
-        jobDescription: form.jobDescription,
+        status: form.status,
+        companyName: form.companyName,
+        interviewerName: form.interviewerName,
+        appliedPosition: form.appliedPosition,
+        mainTechStack: form.mainTechStack,
         transcript: form.transcript,
         note: form.note,
       };
       const account = ownAccounts.find((a) => a._id === form.accountId);
       const accountLabel = account?.name || account?.email || 'account';
+      const stageText = form.stage ? `${stageLabel(form.stage)} ` : '';
       if (mode === 'update' && active) {
         await api.updateInterview(active._id, body);
-        notify.success(`${stageLabel(form.stage)} interview for ${accountLabel} updated successfully`);
+        notify.success(`${stageText}interview for ${accountLabel} updated successfully`);
       } else {
         await api.createInterview(body);
-        notify.success(`${stageLabel(form.stage)} interview for ${accountLabel} created successfully`);
+        notify.success(`${stageText}interview for ${accountLabel} created successfully`);
       }
       closeModal();
       mutate();
@@ -382,7 +419,7 @@ export default function InterviewsPage() {
   };
 
   const accountOptions = useMemo(() => [
-    { value: '', label: 'All accounts' },
+    { value: '', label: 'All profiles' },
     ...accounts.map((a) => ({ value: a._id, label: a.name ? `${a.name} (${a.email})` : a.email || a._id })),
   ], [accounts]);
 
@@ -401,32 +438,53 @@ export default function InterviewsPage() {
     ...STAGES,
   ], []);
 
+  const statusOptions = useMemo(() => [
+    { value: '', label: 'All statuses' },
+    ...STATUSES,
+  ], []);
+
+  const stageFormOptions = useMemo(() => [
+    { value: '', label: '— None —' },
+    ...STAGES,
+  ], []);
+
+  const statusFormOptions = useMemo(() => [
+    { value: '', label: '— None —' },
+    ...STATUSES,
+  ], []);
+
   const renderRow = (iv: Interview) => {
     const creator = typeof iv.createdBy === 'object' ? iv.createdBy : null;
     const account = typeof iv.accountId === 'object' ? iv.accountId : null;
     const editable = canEdit(iv);
-    const checked = selectedIds.has(iv._id);
     return (
-      <tr key={iv._id} className={'border-t hover:bg-gray-50 ' + (checked ? 'bg-blue-50/40' : '')}>
-        <td className="px-3 py-2 w-10">
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={() => toggleOne(iv._id)}
-            aria-label="Select interview"
-          />
-        </td>
+      <tr
+        key={iv._id}
+        className="border-t hover:bg-gray-50 cursor-pointer"
+        onClick={() => navigate(`/interviews/${iv._id}`)}
+      >
         <td className="px-3 py-2">{iv.ownerName || creator?.name || iv.ownerEmail || creator?.email || '—'}</td>
         <td className="px-3 py-2">{formatTimeRange(iv.scheduledAt, iv.endsAt)}</td>
         <td className="px-3 py-2">
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${stageBadgeClass(iv.stage)}`}>
-            {stageLabel(iv.stage)}
-          </span>
+          {iv.stage ? (
+            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${stageBadgeClass(iv.stage)}`}>
+              {stageLabel(iv.stage)}
+            </span>
+          ) : <span className="text-gray-400">—</span>}
         </td>
-        <td className="px-3 py-2">{account?.name || account?.email || '—'}</td>
         <td className="px-3 py-2">
-          <div className="flex gap-2 flex-wrap">
-            <button type="button" className="btn" onClick={() => openRead(iv)} title="Read"><Eye size={16} /></button>
+          {iv.status ? (
+            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusBadgeClass(iv.status)}`}>
+              {statusLabel(iv.status)}
+            </span>
+          ) : <span className="text-gray-400">—</span>}
+        </td>
+        <td className="px-3 py-2">{iv.companyName || <span className="text-gray-400">—</span>}</td>
+        <td className="px-3 py-2">{iv.interviewerName || <span className="text-gray-400">—</span>}</td>
+        <td className="px-3 py-2">{account?.name || account?.email || '—'}</td>
+        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+          <div className="flex gap-2 whitespace-nowrap">
+            <Link to={`/interviews/${iv._id}`} className="btn" title="Open"><Eye size={16} /></Link>
             <button
               type="button"
               className="btn"
@@ -457,14 +515,30 @@ export default function InterviewsPage() {
     const editable = canEdit(iv);
     return (
       <div key={iv._id} className="card p-4 space-y-2 hover:shadow-md transition">
-        <div className="flex items-center justify-between">
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${stageBadgeClass(iv.stage)}`}>
-            {stageLabel(iv.stage)}
-          </span>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            {iv.stage && (
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${stageBadgeClass(iv.stage)}`}>
+                {stageLabel(iv.stage)}
+              </span>
+            )}
+            {iv.status && (
+              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusBadgeClass(iv.status)}`}>
+                {statusLabel(iv.status)}
+              </span>
+            )}
+          </div>
           <span className="text-xs text-gray-500">{formatTimeRange(iv.scheduledAt, iv.endsAt)}</span>
         </div>
+        {(iv.companyName || iv.interviewerName || iv.appliedPosition) && (
+          <div className="text-sm">
+            <div className="font-medium">{iv.companyName || '—'}</div>
+            {iv.appliedPosition && <div className="text-gray-600 text-xs">{iv.appliedPosition}{iv.mainTechStack ? ` · ${iv.mainTechStack}` : ''}</div>}
+            {iv.interviewerName && <div className="text-gray-500 text-xs">w/ {iv.interviewerName}</div>}
+          </div>
+        )}
         <div className="text-sm">
-          <div className="text-gray-500">Account</div>
+          <div className="text-gray-500">Profile</div>
           <div className="font-medium">{account?.name || account?.email || '—'}</div>
         </div>
         <div className="text-sm">
@@ -472,7 +546,7 @@ export default function InterviewsPage() {
           <div>{iv.ownerName || creator?.name || iv.ownerEmail || creator?.email || '—'}</div>
         </div>
         <div className="flex gap-2 pt-2 border-t border-gray-100">
-          <button type="button" className="btn" onClick={() => openRead(iv)} title="Read"><Eye size={16} /></button>
+          <Link to={`/interviews/${iv._id}`} className="btn" title="Open"><Eye size={16} /></Link>
           <button type="button" className="btn" onClick={() => openUpdate(iv)} disabled={!editable} title="Update"><Pencil size={16} /></button>
           <button type="button" className="btn" onClick={() => openDelete(iv)} disabled={!editable} title="Delete"><Trash2 size={16} /></button>
         </div>
@@ -486,44 +560,31 @@ export default function InterviewsPage() {
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Interviews</h1>
-        {activeTab === 'list' && (
-          <button type="button" className="btn" onClick={openCreate}>
-            <Plus size={16} className="mr-2" /> Create
-          </button>
-        )}
+        <button type="button" className="btn" onClick={openCreate}>
+          <Plus size={16} className="mr-2" /> Create
+        </button>
       </div>
 
-      <Tabs
-        value={activeTab}
-        onChange={setActiveTab}
-        tabs={[
-          { key: 'list', label: 'Interviews' },
-          {
-            key: 'review',
-            label: `Interview Review with AI${selectedIds.size ? ` (${selectedIds.size})` : ''}`,
-          },
-          { key: 'ideas', label: 'Review Ideas', hidden: !isAdmin },
-        ]}
-      >
-        {activeTab === 'review' ? (
-          <AiReviewPanel selectedIds={selectedIds} />
-        ) : activeTab === 'ideas' ? (
-          isAdmin ? <ReviewIdeasPanel /> : null
-        ) : (
-        <div className="space-y-4">
+      <div className="space-y-4">
       {/* Filters */}
       <div className="flex items-end gap-3 flex-wrap">
+        {isAdmin && (
+          <div className="min-w-[180px]">
+            <label className="block text-xs mb-1 text-gray-600">Creator</label>
+            <Select value={creatorId} onChange={setCreatorId} options={creatorOptions} />
+          </div>
+        )}
         <div className="min-w-[180px]">
-          <label className="block text-xs mb-1 text-gray-600">Creator</label>
-          <Select value={creatorId} onChange={setCreatorId} options={creatorOptions} />
-        </div>
-        <div className="min-w-[180px]">
-          <label className="block text-xs mb-1 text-gray-600">Account</label>
+          <label className="block text-xs mb-1 text-gray-600">Profile</label>
           <Select value={accountId} onChange={setAccountId} options={accountOptions} />
         </div>
         <div className="min-w-[160px]">
           <label className="block text-xs mb-1 text-gray-600">Stage</label>
           <Select value={stage} onChange={setStage} options={stageOptions} />
+        </div>
+        <div className="min-w-[160px]">
+          <label className="block text-xs mb-1 text-gray-600">Status</label>
+          <Select value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
         </div>
         <div>
           <label className="block text-xs mb-1 text-gray-600">From</label>
@@ -596,45 +657,20 @@ export default function InterviewsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-100 text-left">
               <tr>
-                <th className="px-3 py-2 w-10">
-                  <input
-                    type="checkbox"
-                    aria-label="Select all on this page"
-                    checked={
-                      interviews.length > 0 && interviews.every((iv) => selectedIds.has(iv._id))
-                    }
-                    ref={(el) => {
-                      if (!el) return;
-                      const someChecked = interviews.some((iv) => selectedIds.has(iv._id));
-                      const allChecked =
-                        interviews.length > 0 &&
-                        interviews.every((iv) => selectedIds.has(iv._id));
-                      el.indeterminate = someChecked && !allChecked;
-                    }}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setSelectedIds((prev) => {
-                        const next = new Set(prev);
-                        for (const iv of interviews) {
-                          if (checked) next.add(iv._id);
-                          else next.delete(iv._id);
-                        }
-                        return next;
-                      });
-                    }}
-                  />
-                </th>
                 <th className="px-3 py-2">Creator</th>
                 <th className="px-3 py-2">Date / Time</th>
                 <th className="px-3 py-2">Stage</th>
-                <th className="px-3 py-2">Account</th>
-                <th className="px-3 py-2 w-48">Actions</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Company</th>
+                <th className="px-3 py-2">Interviewer</th>
+                <th className="px-3 py-2">Profile</th>
+                <th className="px-3 py-2 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                     <div className="flex items-center justify-center">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
                       Loading interviews...
@@ -642,7 +678,7 @@ export default function InterviewsPage() {
                   </td>
                 </tr>
               ) : interviews.length === 0 ? (
-                <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">No interviews found.</td></tr>
+                <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">No interviews found.</td></tr>
               ) : (
                 interviews.map(renderRow)
               )}
@@ -708,9 +744,7 @@ export default function InterviewsPage() {
           </div>
         </div>
       )}
-        </div>
-        )}
-      </Tabs>
+      </div>
 
       {/* Create / Update / Read modal */}
       <Modal
@@ -740,14 +774,38 @@ export default function InterviewsPage() {
                 <div>
                   <div className="text-gray-500 text-xs">Stage</div>
                   <div>
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${stageBadgeClass(form.stage)}`}>
-                      {stageLabel(form.stage)}
-                    </span>
+                    {form.stage ? (
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${stageBadgeClass(form.stage)}`}>
+                        {stageLabel(form.stage)}
+                      </span>
+                    ) : <span className="text-gray-400">—</span>}
                   </div>
                 </div>
                 <div>
-                  <div className="text-gray-500 text-xs">Resume</div>
-                  <div className="font-medium">{active?.resumeFilename || '—'}</div>
+                  <div className="text-gray-500 text-xs">Status</div>
+                  <div>
+                    {form.status ? (
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusBadgeClass(form.status)}`}>
+                        {statusLabel(form.status)}
+                      </span>
+                    ) : <span className="text-gray-400">—</span>}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs">Company</div>
+                  <div className="font-medium">{form.companyName || '—'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs">Interviewer Name</div>
+                  <div className="font-medium">{form.interviewerName || '—'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs">Applied Position</div>
+                  <div className="font-medium">{form.appliedPosition || '—'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500 text-xs">Main Tech Stack</div>
+                  <div className="font-medium">{form.mainTechStack || '—'}</div>
                 </div>
                 <div>
                   <div className="text-gray-500 text-xs">Date</div>
@@ -761,13 +819,6 @@ export default function InterviewsPage() {
                   <div className="text-gray-500 text-xs">End time</div>
                   <div>{form.endTime || '—'}</div>
                 </div>
-              </div>
-              <div>
-                <div className="text-gray-500 text-xs mb-1">Job Description</div>
-                <div
-                  className="prose-readonly bg-white"
-                  dangerouslySetInnerHTML={{ __html: form.jobDescription || '<p class="text-gray-400 italic">—</p>' }}
-                />
               </div>
               <div>
                 <div className="text-gray-500 text-xs mb-1">Interview Transcript</div>
@@ -795,41 +846,12 @@ export default function InterviewsPage() {
                 </label>
                 <Select
                   value={form.accountId}
-                  onChange={(v) => setForm({ ...form, accountId: v, resumeId: '' })}
+                  onChange={(v) => setForm({ ...form, accountId: v })}
                   options={accountSelectOptions}
-                  placeholder="Select an account"
+                  placeholder="Select a profile"
                   disabled={mode === 'update' && !!active && !canEdit(active)}
                 />
               </div>
-
-              {(() => {
-                const selectedAccount = ownAccounts.find((a) => a._id === form.accountId);
-                const resumeOptions = (selectedAccount?.resumes || []).map((r) => ({
-                  value: r.id || '',
-                  label: r.filename || '(unnamed)',
-                }));
-                const noAccount = !form.accountId;
-                const noResumes = !!selectedAccount && resumeOptions.length === 0;
-                return (
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Resume <span className="text-red-500">*</span>
-                    </label>
-                    <Select
-                      value={form.resumeId}
-                      onChange={(v) => setForm({ ...form, resumeId: v })}
-                      options={resumeOptions}
-                      placeholder={noAccount ? 'Select an account first' : 'Select a resume'}
-                      disabled={noAccount || noResumes || (mode === 'update' && !!active && !canEdit(active))}
-                    />
-                    {noResumes && (
-                      <p className="text-xs text-amber-600 mt-1">
-                        This account has no resumes yet. Add one in the Accounts page first.
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -867,40 +889,135 @@ export default function InterviewsPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Interview Stage <span className="text-red-500">*</span>
-                </label>
-                <Select
-                  value={form.stage}
-                  onChange={(v) => setForm({ ...form, stage: v })}
-                  options={STAGES}
-                  placeholder="Select a stage"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Interview Stage</label>
+                  <Select
+                    value={form.stage}
+                    onChange={(v) => setForm({ ...form, stage: v })}
+                    options={stageFormOptions}
+                    placeholder="Select a stage"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Status</label>
+                  <Select
+                    value={form.status}
+                    onChange={(v) => setForm({ ...form, status: v })}
+                    options={statusFormOptions}
+                    placeholder="Select a status"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Job Description</label>
-                <div className="border border-gray-300 rounded-md">
-                  <ReactQuill
-                    theme="snow"
-                    value={form.jobDescription}
-                    onChange={(value) => setForm({ ...form, jobDescription: value })}
-                    modules={QUILL_MODULES}
-                    placeholder="Paste a URL or write the JD…"
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Company Name</label>
+                  <input
+                    className="input"
+                    type="text"
+                    value={form.companyName}
+                    onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                    placeholder="e.g. Acme Corp"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Interviewer Name</label>
+                  <input
+                    className="input"
+                    type="text"
+                    value={form.interviewerName}
+                    onChange={(e) => setForm({ ...form, interviewerName: e.target.value })}
+                    placeholder="e.g. Jane Smith"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Applied Position</label>
+                  <input
+                    className="input"
+                    type="text"
+                    value={form.appliedPosition}
+                    onChange={(e) => setForm({ ...form, appliedPosition: e.target.value })}
+                    placeholder="e.g. Backend, Frontend, AI, Mobile…"
+                    list="applied-position-suggestions"
+                  />
+                  <datalist id="applied-position-suggestions">
+                    <option value="Backend" />
+                    <option value="Frontend" />
+                    <option value="Fullstack" />
+                    <option value="AI / ML" />
+                    <option value="Mobile" />
+                    <option value="DevOps" />
+                    <option value="Data" />
+                    <option value="QA" />
+                    <option value="Other" />
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Main Tech Stack</label>
+                  <input
+                    className="input"
+                    type="text"
+                    value={form.mainTechStack}
+                    onChange={(e) => setForm({ ...form, mainTechStack: e.target.value })}
+                    placeholder="e.g. Python, FastAPI, PostgreSQL"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Interview Transcript</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">Interview Transcript</label>
+                  <label className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer">
+                    Upload .txt / .md / .doc / .docx
+                    <input
+                      type="file"
+                      accept=".txt,.md,.markdown,.doc,.docx,text/plain,text/markdown,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const ext = file.name.toLowerCase().split('.').pop() || '';
+                        const isPlain = ext === 'txt' || ext === 'md' || ext === 'markdown';
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const raw = String(reader.result || '');
+                          // Convert plain text/markdown to simple HTML paragraphs so the
+                          // rich-text editor renders it readably.
+                          const escaped = raw
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+                          const html = escaped
+                            .split(/\n{2,}/)
+                            .map((p) => `<p>${p.replace(/\n/g, '<br/>')}</p>`)
+                            .join('');
+                          setForm((prev) => ({ ...prev, transcript: html }));
+                          if (!isPlain) {
+                            notify.error(
+                              `${ext.toUpperCase()} files may not parse cleanly. Save as .txt or .md if the result looks garbled.`
+                            );
+                          } else {
+                            notify.success('Transcript loaded');
+                          }
+                        };
+                        reader.onerror = () => notify.error('Could not read the file');
+                        reader.readAsText(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
                 <div className="border border-gray-300 rounded-md">
                   <ReactQuill
                     theme="snow"
                     value={form.transcript}
                     onChange={(value) => setForm({ ...form, transcript: value })}
                     modules={QUILL_MODULES}
-                    placeholder="Paste or write the transcript…"
+                    placeholder="Paste, write, or upload the transcript…"
                   />
                 </div>
               </div>
@@ -924,7 +1041,7 @@ export default function InterviewsPage() {
                   type="button"
                   className="btn"
                   onClick={save}
-                  disabled={saving || !form.date || !form.startTime || !form.endTime || !form.stage || (mode === 'create' && !form.accountId)}
+                  disabled={saving || !form.date || !form.startTime || !form.endTime || (mode === 'create' && !form.accountId)}
                 >
                   {saving ? 'Saving…' : mode === 'update' ? 'Save changes' : 'Create'}
                 </button>
@@ -943,7 +1060,7 @@ export default function InterviewsPage() {
           </p>
           {active && (
             <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
-              <div><span className="text-gray-500">Stage:</span> {stageLabel(active.stage)}</div>
+              <div><span className="text-gray-500">Stage:</span> {active.stage ? stageLabel(active.stage) : '—'}</div>
               <div><span className="text-gray-500">When:</span> {formatScheduled(active.scheduledAt)}</div>
             </div>
           )}

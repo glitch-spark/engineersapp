@@ -66,6 +66,24 @@ function formatDateRange(startDate: string, endDate: string) {
   return `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
 }
 
+function getWeekDateRange(year: number, weekNumber: number) {
+  const jan1 = new Date(year, 0, 1);
+  const jan1Day = jan1.getDay();
+  const mondayOffset = jan1Day === 0 ? -6 : 1 - jan1Day;
+  const firstMonday = new Date(year, 0, 1 + mondayOffset);
+  const start = new Date(firstMonday);
+  start.setDate(firstMonday.getDate() + (weekNumber - 1) * 7);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return { start, end };
+}
+
+function formatWeekOptionLabel(year: number, weekNumber: number) {
+  const { start, end } = getWeekDateRange(year, weekNumber);
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  return `Week ${weekNumber} (${start.toLocaleDateString(undefined, opts)} - ${end.toLocaleDateString(undefined, opts)})`;
+}
+
 function truncateHtml(html: string, maxLength: number): string {
   if (!html) return '';
   const plainText = html.replace(/<[^>]*>/g, '');
@@ -289,7 +307,7 @@ export default function WeeklyPlanPage() {
             <label className="block text-xs mb-1 text-gray-600">Week</label>
             <select className="select focus-ring" value={weekNumber} onChange={(e) => setWeekNumber(e.target.value)}>
               <option value="">All weeks</option>
-              {weekOptions.map(w => (<option key={w} value={w}>Week {w}</option>))}
+              {weekOptions.map(w => (<option key={w} value={w}>{formatWeekOptionLabel(Number(year), w)}</option>))}
             </select>
           </div>
           {isAdmin && (

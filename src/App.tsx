@@ -15,6 +15,12 @@ import Users from './pages/Users';
 import Profile from './pages/Profile';
 import Accountants from './pages/Accountants';
 import Interviews from './pages/Interviews';
+import InterviewDetail from './pages/InterviewDetail';
+import InterviewReview from './pages/InterviewReview';
+import Resume from './pages/Resume';
+import AccountResumeSettings from './pages/AccountResumeSettings';
+import AccountEdit from './pages/AccountEdit';
+import Preferences from './pages/Preferences';
 
 function Protected({ children }: { children: React.ReactNode }) {
   return (
@@ -37,10 +43,17 @@ export default function App() {
 
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
       <Route path="/accounts" element={<Protected><Accounts /></Protected>} />
+      <Route path="/accounts/new" element={<Protected><AccountEdit /></Protected>} />
+      <Route path="/accounts/:id" element={<Protected><AccountEdit /></Protected>} />
+      <Route path="/accounts/:id/resume-settings" element={<Protected><AccountResumeSettings /></Protected>} />
       <Route path="/transactions" element={<Protected><Transactions /></Protected>} />
       <Route path="/cardlink" element={<Protected><CardLink /></Protected>} />
       <Route path="/weekly-plan" element={<Protected><WeeklyPlan /></Protected>} />
       <Route path="/interviews" element={<Protected><Interviews /></Protected>} />
+      <Route path="/interviews/:id" element={<Protected><InterviewDetail /></Protected>} />
+      <Route path="/interviews/:id/review" element={<Protected><InterviewReview /></Protected>} />
+      <Route path="/resume" element={<Protected><Resume /></Protected>} />
+      <Route path="/preferences" element={<Protected><Preferences /></Protected>} />
       <Route path="/users" element={<Protected><Users /></Protected>} />
       <Route path="/profile" element={<Protected><Profile /></Protected>} />
       <Route path="/accountants" element={<Protected><Accountants /></Protected>} />

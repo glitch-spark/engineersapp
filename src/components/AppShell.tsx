@@ -2,20 +2,17 @@ import { useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import Topbar from './Topbar';
 import Sidebar from './Sidebar';
-import Footer from './Footer';
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed] = useState(false);
   const isAuth = pathname.startsWith('/login') || pathname.startsWith('/register');
-
-  const toggleSidebar = () => setIsSidebarCollapsed(v => !v);
 
   if (isAuth) return <>{children}</>;
   return (
     <div className="flex flex-col min-h-screen bg-background transition-all duration-300">
       <Topbar />
-      <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
+      <Sidebar isCollapsed={isSidebarCollapsed} />
       <div className={`flex-1 pt-16 transition-all duration-300 ${
         isSidebarCollapsed ? 'pl-20' : 'pl-64'
       }`}>
@@ -25,7 +22,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </div>
-      <Footer />
     </div>
   );
 }

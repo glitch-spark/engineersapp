@@ -96,28 +96,28 @@ export default function CardLinksPage() {
       const body = { ...form, ...(editing ? { userId: editing.userId?._id } : {}) };
       if (editing) {
         await api.updateCardlink(editing._id, body);
-        notify.success('Card link updated');
+        notify.success('Subscription updated');
       } else {
         await api.createCardlink(body);
-        notify.success('Card link created');
+        notify.success('Subscription created');
       }
       setOpen(false);
       mutate();
     } catch (err) {
-      notify.error(err instanceof ApiError ? err : 'Failed to save Card Link');
+      notify.error(err instanceof ApiError ? err : 'Failed to save Subscription');
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async (cl: Cl) => {
-    if (!confirm('Are you sure you want to delete this Card Link?')) return;
+    if (!confirm('Are you sure you want to delete this Subscription?')) return;
     try {
       await api.deleteCardlink(cl._id);
-      notify.success('Card link deleted');
+      notify.success('Subscription deleted');
       mutate();
     } catch (err) {
-      notify.error(err, 'Failed to delete Card Link');
+      notify.error(err, 'Failed to delete Subscription');
     }
   };
 
@@ -137,7 +137,7 @@ export default function CardLinksPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Card Link</h1>
+        <h1 className="text-2xl font-bold">Subscription</h1>
         <button type="button" className="btn" onClick={openAdd}>Add</button>
       </div>
 
@@ -172,7 +172,7 @@ export default function CardLinksPage() {
         <div className="flex items-center justify-between">
           <div className="text-sm text-gray-600">
             <span>
-              Showing {pagination?.total ?? 0} card-link{pagination?.total !== 1 ? 's' : ''} total
+              Showing {pagination?.total ?? 0} subscription{pagination?.total !== 1 ? 's' : ''} total
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -211,12 +211,12 @@ export default function CardLinksPage() {
                 <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
-                    Loading card links...
+                    Loading subscriptions...
                   </div>
                 </td>
               </tr>
             ) : cardlinks.length === 0 ? (
-              <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">No Card Links found.</td></tr>
+              <tr><td colSpan={8} className="px-3 py-6 text-center text-gray-500">No Subscriptions found.</td></tr>
             ) : (
               cardlinks.map((t) => {
                 const isCanceled = t.status === 'canceled';
@@ -311,7 +311,7 @@ export default function CardLinksPage() {
         </div>
       )}
 
-      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit Card Link' : 'Add Card Link'}>
+      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit Subscription' : 'Add Subscription'}>
         <div className="space-y-3">
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <input className="input" type="email" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />

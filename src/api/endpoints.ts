@@ -207,8 +207,17 @@ export const deleteWeeklyPlan = (id: string) => del<{ message: string }>(`/weekl
 
 // ---------- accounts lookup (filter dropdowns) ----------
 
+export interface AccountLookup {
+  _id: string;
+  name: string;
+  email: string;
+  label?: string | null;
+  hasExperience?: boolean;
+  createdBy?: string;
+}
+
 export const lookupAccounts = () =>
-  apiFetch<{ accounts: { _id: string; name: string; email: string }[] }>('/accounts/lookup');
+  apiFetch<{ accounts: AccountLookup[] }>('/accounts/lookup');
 
 // ---------- users lookup (filter dropdowns; available to all authed users) ----------
 
@@ -224,6 +233,7 @@ export interface InterviewListParams {
   to?: string;
   accountId?: string;
   stage?: string;
+  status?: string;
   creatorId?: string;
   sort?: 'asc' | 'desc';
 }
@@ -232,6 +242,27 @@ export const listInterviews = (params?: InterviewListParams) =>
   apiFetch<{ interviews: Record<string, unknown>[]; pagination: Pagination }>(
     `/interviews${qs(params)}`
   );
+
+export const getInterview = (id: string) =>
+  apiFetch<Record<string, unknown>>(`/interviews/${id}`);
+
+export interface AiInterviewChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AiInterviewChatResponse {
+  reply: string;
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+}
+
+export const interviewChat = (
+  interviewId: string,
+  body: { messages: AiInterviewChatMessage[]; rubric?: boolean },
+) =>
+  postJSON<AiInterviewChatResponse>(`/ai-review/interview/${interviewId}/chat`, body);
 
 export const createInterview = (body: Record<string, unknown>) =>
   postJSON<Record<string, unknown>>('/interviews', body);
@@ -370,4 +401,79 @@ export function streamAiReview(opts: StreamAiReviewOpts): EventSource {
   });
 
   return es;
+}
+
+// ---------- resume ----------
+
+export interface ResumeApplication {
+  _id: string;
+  userId: string;
+  accountId: string;
+  companyName: string;
+  jobDescription: string;
+  s3Key?: string | null;
+  s3Url?: string | null;
+  createdAt: string;
+}
+
+export interface ScreeningPair {
+  question: string;
+  answer: string;
+}
+
+export function generateScreeningAnswers(body: {
+  accountId: string;
+  jobDescription?: string;
+  questions: string[];
+  guidelines?: string;
+  guidelinesMode?: 'markdown' | 'plaintext';
+  saveGuidelines?: boolean;
+  useGeneratedResumeContext?: boolean;
+}) {
+  return postJSON<{ pairs: ScreeningPair[] }>('/resume/screening-answers', body);
+}
+
+export function refreshPreviewHtml(accountId: string, jobDescription?: string) {
+  return postJSON<{ html: string }>('/resume/preview-html', {
+    accountId,
+    ...(jobDescription ? { jobDescription } : {}),
+  });
+}
+
+export function listResumeHistory(accountId?: string) {
+  return apiFetch<{ applications: ResumeApplication[] }>(
+    `/resume/history${qs({ accountId })}`
+  );
+}
+
+export async function generateResume(body: {
+  accountId: string;
+  company: string;
+  jobDescription: string;
+}): Promise<{ blob: Blob; s3Url: string | null }> {
+  const token = getToken();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE_URL}/resume/generate`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    try {
+      const data = await res.json();
+      message = data.error || data.detail || message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
+
+  return {
+    blob: await res.blob(),
+    s3Url: res.headers.get('X-Resume-URL'),
+  };
 }

@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+html { font-size: 90%; }
 html, body, :root { height: 100%; font-family: theme('fontFamily.sans'); background: theme('colors.background.DEFAULT'); }
 input, textarea, select, button { font-family: inherit; }
 input::placeholder, textarea::placeholder { font-family: inherit; }
